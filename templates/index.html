@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TravelMed Concierge</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 1.5rem; background: #f4f6fb; color: #1f2937; }
+    main { max-width: 920px; margin: auto; }
+    h1 { margin-top: 0; }
+    section { margin: 1.5rem 0; padding: 1.25rem; background: #ffffff; border: 1px solid #d1d5db; border-radius: 12px; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #eef2ff; padding: 0.15rem 0.35rem; border-radius: 4px; }
+    .footer { font-size: 0.95rem; color: #6b7280; }
+    label { display: block; margin-top: 1rem; font-weight: 600; }
+    input, button, select { width: 100%; max-width: 100%; padding: 0.8rem; margin-top: 0.4rem; border: 1px solid #d1d5db; border-radius: 10px; font-size: 1rem; }
+    button { background: #2563eb; color: white; border: none; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .results { margin-top: 1rem; }
+    .clinic { padding: 1rem; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 1rem; background: #f9fafb; }
+    .meta { color: #6b7280; font-size: 0.95rem; }
+    .error { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>TravelMed Concierge</h1>
+    <p>Hi {{ traveler_name }} — this app helps a single traveler search for clinics and health services across {{ travel_region }}.</p>
+
+    <section>
+      <h2>Find clinics in Europe</h2>
+      <p>Enter a travel destination or medical service keyword to search EU health datasets and clinic listings.</p>
+      <label for="query">Search terms</label>
+      <input id="query" type="text" placeholder="e.g. clinic, hospital, pharmacy" />
+
+      <label for="region">Region</label>
+      <select id="region">
+        <option selected>{{ travel_region }}</option>
+        <option>Europe</option>
+        <option>Germany</option>
+        <option>France</option>
+        <option>Spain</option>
+        <option>Italy</option>
+        <option>Portugal</option>
+        <option>Netherlands</option>
+      </select>
+
+      <button id="searchButton">Search clinics</button>
+      <div id="status" class="meta"></div>
+      <div id="results" class="results"></div>
+    </section>
+
+    <section>
+      <h2>API Endpoints</h2>
+      <ul>
+        <li><a href="/health">/health</a> — app health check</li>
+        <li><a href="/api/clinics">/api/clinics</a> — search EU clinics and health datasets</li>
+        <li><a href="/api/clinics/sparql-ping">/api/clinics/sparql-ping</a> — SPARQL connectivity</li>
+      </ul>
+      <p><code>/api/clinics</code> supports <code>q</code> and <code>region</code> query parameters.</p>
+    </section>
+
+    <section>
+      <h2>Configuration</h2>
+      <p><strong>FHIR Base URL:</strong> <code>{{ fhir_base }}</code><br />
+      <strong>SPARQL URL:</strong> <code>{{ sparql_url }}</code></p>
+    </section>
+
+    <section>
+      <h2>Quick start</h2>
+      <ol>
+        <li>Install dependencies: <code>pip install -r requirements.txt</code></li>
+        <li>Run the app: <code>python app.py</code></li>
+        <li>Open <code>http://127.0.0.1:5000</code> in your browser.</li>
+      </ol>
+    </section>
+
+    <p class="footer">TravelMed Concierge is a travel-focused backend for quick European clinic discovery and health dataset lookup.</p>
+  </main>
+
+  <script>
+    const status = document.getElementById('status');
+    const results = document.getElementById('results');
+    const queryInput = document.getElementById('query');
+    const regionInput = document.getElementById('region');
+    const button = document.getElementById('searchButton');
+
+    async function searchClinics() {
+      const q = queryInput.value.trim();
+      const region = regionInput.value.trim() || '{{ travel_region }}';
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (region) params.set('region', region);
+      status.textContent = 'Searching clinics...';
+      results.innerHTML = '';
+
+      try {
+        const res = await fetch('/api/clinics?' + params.toString());
+        const body = await res.json();
+        if (!res.ok || body.error) {
+          status.textContent = '';
+          results.innerHTML = `<p class="error">${body.error || 'Unable to complete clinic search.'}</p>`;
+          return;
+        }
+
+        status.textContent = `Found ${body.count} results for ${body.keyword || 'health services'} in ${body.region}.`;
+        if (!body.results.length) {
+          results.innerHTML = '<p>No clinics found. Try a broader query.</p>';
+          return;
+        }
+
+        results.innerHTML = body.results.map(clinic => `
+          <div class="clinic">
+            <strong>${clinic.title}</strong>
+            <div class="meta">${clinic.type} — ${clinic.publisher}${clinic.issued ? ' — ' + clinic.issued : ''}</div>
+            <p>${clinic.description || 'No description available.'}</p>
+            ${clinic.access_url ? `<p><a href="${clinic.access_url}" target="_blank">Source link</a></p>` : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        status.textContent = '';
+        results.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    }
+
+    button.addEventListener('click', searchClinics);
+  </script>
+</body>
+</html>
